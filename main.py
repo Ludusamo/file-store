@@ -58,7 +58,7 @@ def quit(password, metadata, *args):
 
 def add(fileEncryptor, metadata, *args):
     def addFile(path, name, filetype, tags):
-        nextId = len(metadata)
+        nextId = metadata[-1]['id'] + 1 if len(metadata) > 0 else 0
         newEntry = \
             { 'id': nextId
             , 'name': name
@@ -76,13 +76,43 @@ def add(fileEncryptor, metadata, *args):
     tags = args[3:]
     print(path)
     if filetype == 'directory':
-        with tarfile.open('dir', 'w') as dirEntry:
+        with tarfile.open('dir.tar', 'w') as dirEntry:
             dirEntry.add(path, arcname=os.path.basename(path))
-        addFile('dir', name, filetype, tags)
-        os.remove('dir')
+        entry = addFile('dir.tar', name, filetype, tags)
+        os.remove('dir.tar')
+        return entry
     else:
         return addFile(path, name, filetype, tags)
     return None # Should never occur
+
+def get(fileEncryptor, metadata, *args):
+    if len(args) < 2: return helpMsg()
+    dirPath = fileEncryptor.filestore + '/unencrypted'
+    def decryptFile(fileId):
+        fileData = metadata[fileId]
+        if fileData['filetype'] == 'directory':
+            fileEncryptor.decrypt(fileEncryptor.filestore + '/' + str(fileId), \
+                    dirPath + '/' + fileData['name'], 'tar')
+            tarpath = dirPath + '/' + fileData['name'] + '.tar'
+            tar = tarfile.open(tarpath, 'r:')
+            print(tar.getmembers())
+            tar.extractall(path=dirPath)
+            tar.close()
+            os.remove(tarpath)
+        else:
+            fileEncryptor.decrypt(fileEncryptor.filestore + '/' + str(fileId), \
+                    dirPath + '/' + fileData['name'], fileData['filetype'])
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath)
+    reqType = args[0]
+    if reqType == 'file':
+        fileId = int(args[1])
+        decryptFile(fileId)
+    elif reqType == 'tag':
+        tag = args[1]
+        for f in filter(lambda f: tag in f['tags'], metadata):
+            decryptFile(f['id'])
+    return 'success'
 
 dispatch = \
     { 'quit': quit
@@ -92,6 +122,7 @@ dispatch = \
     , 'untag': untag
     , 'add': add
     , 'ls': ls
+    , 'get': get
     }
 
 def main():
@@ -109,18 +140,20 @@ def main():
 
     # Read in metadata
     metadata = None
-    fileEncryptor.decrypt(filestore + '/metadata', 'json')
-    with open(filestore + '/metadata.json', 'rb') as f:
-        try:
-            metadata = json.load(f)
-        except:
-            print('incorrect password', file=sys.stderr)
-            return
-    os.remove(filestore + '/metadata.json')
-    print(metadata)
+    if os.path.exists(filestore + '/metadata'):
+        fileEncryptor.decrypt(filestore + '/metadata', \
+                filestore + '/metadata', 'json')
+        with open(filestore + '/metadata.json', 'rb') as f:
+            try:
+                metadata = json.load(f)
+            except:
+                print('incorrect password', file=sys.stderr)
+                return
+        os.remove(filestore + '/metadata.json')
 
-    for entry in metadata:
-        pass
+    if not metadata:
+        metadata = []
+        print('repository initialized')
 
     while True:
         cmd = input('>> ').split(' ')
@@ -138,7 +171,6 @@ def main():
         except:
             pass
 
-    print(password)
     fileEncryptor.encrypt(filestore + '/metadata.json', filestore + '/metadata')
     os.remove(filestore + '/metadata.json')
 

@@ -27,13 +27,13 @@ class FileEncryptor:
                         chunk += b' ' * (16 - len(chunk) % 16)
                     fout.write(encryptor.encrypt(chunk))
 
-    def decrypt(self, path, filetype='txt', chunksize=64*1024):
+    def decrypt(self, path, outpath, filetype='txt', chunksize=64*1024):
         with open(path, 'rb') as f:
             key = sha256(self.password).digest()
             origsize = struct.unpack('<Q', f.read(struct.calcsize('Q')))[0]
             iv = f.read(16)
             decryptor = AES.new(key, AES.MODE_CBC, iv)
-            with open(path + '.' + filetype, 'wb') as out:
+            with open(outpath + '.' + filetype, 'wb') as out:
                 while True:
                     chunk = f.read(chunksize)
                     if len(chunk) == 0:
