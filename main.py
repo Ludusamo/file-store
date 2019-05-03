@@ -19,9 +19,9 @@ def entryToString(entry):
 def search(fileEncryptor, metadata, *args):
     if len(args) < 2: return helpMsg()
     searchType = args[0]
-    query = args[1]
 
     if searchType == 'tag':
+        query = args[1]
         tags = list(
                 reduce(lambda t1, t2: t1 + t2,
                 map(lambda entry: entry['tags'],
@@ -30,6 +30,25 @@ def search(fileEncryptor, metadata, *args):
             return process.extract(query, tags)
         except:
             return []
+    elif searchType == 'file':
+        subtype = args[1]
+        query = args[2]
+        if subtype == 'tag':
+            return reduce(lambda x, y: x + entryToString(y) + '\n',
+                    filter(lambda e: query in e['tags'], metadata),
+                    '')
+        elif subtype == 'name':
+            names = list(map(lambda entry: entry['name'], metadata))
+            try:
+                matches = process.extract(query, names)
+                return reduce(lambda x, y: x + entryToString(y) + '\n',
+                        map(lambda match: \
+                                next(e for e in metadata \
+                                    if e['name'] == match[0]),
+                            matches),
+                        '')
+            except:
+                return []
     else:
         return '{} is not a valid search type'.format(searchType)
 
@@ -100,7 +119,6 @@ def get(fileEncryptor, metadata, *args):
                     dirPath + '/' + fileData['name'], 'tar.gz')
             tarpath = dirPath + '/' + fileData['name'] + '.tar.gz'
             tar = tarfile.open(tarpath, 'r:gz')
-            print(tar.getmembers())
             tar.extractall(path=folderPath)
             tar.close()
             os.remove(tarpath)
