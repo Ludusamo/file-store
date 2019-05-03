@@ -78,11 +78,11 @@ def add(fileEncryptor, metadata, *args):
     filetype = args[2]
     tags = args[3:]
     print(path)
-    if filetype == 'directory':
-        with tarfile.open('dir.tar', 'w') as dirEntry:
+    if filetype == 'dir':
+        with tarfile.open('dir.tar.gz', 'w:gz') as dirEntry:
             dirEntry.add(path, arcname=os.path.basename(path))
-        entry = addFile('dir.tar', name, filetype, tags)
-        os.remove('dir.tar')
+        entry = addFile('dir.tar.gz', name, filetype, tags)
+        os.remove('dir.tar.gz')
         return entryToString(entry)
     else:
         return entryToString(addFile(path, name, filetype, tags))
@@ -93,13 +93,15 @@ def get(fileEncryptor, metadata, *args):
     dirPath = fileEncryptor.filestore + '/unencrypted'
     def decryptFile(fileId):
         fileData = metadata[fileId]
-        if fileData['filetype'] == 'directory':
+        if fileData['filetype'] == 'dir':
+            folderPath = dirPath + '/' + fileData['name']
+            os.makedirs(folderPath)
             fileEncryptor.decrypt(fileEncryptor.filestore + '/' + str(fileId), \
-                    dirPath + '/' + fileData['name'], 'tar')
-            tarpath = dirPath + '/' + fileData['name'] + '.tar'
-            tar = tarfile.open(tarpath, 'r:')
+                    dirPath + '/' + fileData['name'], 'tar.gz')
+            tarpath = dirPath + '/' + fileData['name'] + '.tar.gz'
+            tar = tarfile.open(tarpath, 'r:gz')
             print(tar.getmembers())
-            tar.extractall(path=dirPath)
+            tar.extractall(path=folderPath)
             tar.close()
             os.remove(tarpath)
         else:
