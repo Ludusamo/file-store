@@ -114,6 +114,21 @@ def get(fileEncryptor, metadata, *args):
             decryptFile(f['id'])
     return 'success'
 
+def remove(fileEncryptor, metadata, *args):
+    if len(args) < 1: return helpMsg()
+    fileId = int(args[0])
+    if fileId >= len(metadata) or fileId < 0:
+        return 'id {} does not exist'.format(fileId)
+    os.remove(fileEncryptor.filestore + '/' + str(fileId))
+    for i in range(fileId + 1, len(metadata)):
+        print(i)
+        metadata[i]['id'] = i - 1
+        metadata[i - 1] = metadata[i]
+        os.rename(fileEncryptor.filestore + '/' + str(i), \
+                fileEncryptor.filestore + '/' + str(i - 1))
+    metadata.pop()
+    return 'successfully removed {}'.format(fileId)
+
 dispatch = \
     { 'quit': quit
     , 'search': search
@@ -123,15 +138,13 @@ dispatch = \
     , 'add': add
     , 'ls': ls
     , 'get': get
+    , 'remove': remove
     }
 
 def main():
     filestore = 'files'
-    if len(sys.argv) == 2:
+    if len(sys.argv) >= 2:
         filestore = sys.argv[1]
-    elif len(sys.argv) > 2:
-        printUsage()
-        raise SystemExit
 
     password = getpass('Please enter password: ')
     fileEncryptor = EncryptedFile.FileEncryptor(password, filestore)
@@ -155,15 +168,18 @@ def main():
         metadata = []
         print('repository initialized')
 
-    while True:
-        cmd = input('>> ').split(' ')
-        if cmd[0] not in dispatch:
-            print(helpMsg())
-            continue
-        # Send the rest as arguments
-        res = dispatch[cmd[0]](fileEncryptor, metadata, *cmd[1:])
-        if not res: break
-        print(res)
+    if len(sys.argv) > 2:
+        print(dispatch[sys.argv[2]](fileEncryptor, metadata, *sys.argv[3:]))
+    else:
+        while True:
+            cmd = input('>> ').split(' ')
+            if cmd[0] not in dispatch:
+                print(helpMsg())
+                continue
+            # Send the rest as arguments
+            res = dispatch[cmd[0]](fileEncryptor, metadata, *cmd[1:])
+            if not res: break
+            print(res)
 
     with open(filestore + '/metadata.json', 'w') as f:
         try:
