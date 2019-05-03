@@ -132,6 +132,13 @@ def remove(fileEncryptor, metadata, *args):
     metadata.pop()
     return 'successfully removed {}'.format(fileId)
 
+def filetype(fileEncryptor, metadata, *args):
+    if len(args) < 2: return helpMsg()
+    fileId = int(args[0])
+    filetype = args[1]
+    metadata[fileId]['filetype'] = filetype
+    return 'successfully set file {} filetype to {}'.format(fileId, filetype)
+
 dispatch = \
     { 'quit': quit
     , 'search': search
@@ -142,6 +149,7 @@ dispatch = \
     , 'ls': ls
     , 'get': get
     , 'remove': remove
+    , 'filetype': filetype
     }
 
 def main():
