@@ -13,6 +13,9 @@ def printUsage():
 def helpMsg(*args):
     return 'To Do: Print Help message'
 
+def entryToString(entry):
+    return '{id:4}|{name:48}|{filetype:4}|{tags}'.format(**entry)
+
 def search(fileEncryptor, metadata, *args):
     if len(args) < 2: return helpMsg()
     searchType = args[0]
@@ -51,7 +54,7 @@ def untag(fileEncryptor, metadata, *args):
         return 'successfully removed {} tag from {}'.format(tag, entry)
 
 def ls(fileEncryptor, metadata, *args):
-    return metadata
+    return reduce(lambda x, y: x + entryToString(y) + '\n', metadata, '')
 
 def quit(password, metadata, *args):
     return None
@@ -80,9 +83,9 @@ def add(fileEncryptor, metadata, *args):
             dirEntry.add(path, arcname=os.path.basename(path))
         entry = addFile('dir.tar', name, filetype, tags)
         os.remove('dir.tar')
-        return entry
+        return entryToString(entry)
     else:
-        return addFile(path, name, filetype, tags)
+        return entryToString(addFile(path, name, filetype, tags))
     return None # Should never occur
 
 def get(fileEncryptor, metadata, *args):
