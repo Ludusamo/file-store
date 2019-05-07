@@ -5,6 +5,7 @@ import os
 from functools import reduce
 from fuzzywuzzy import process
 from getpass import getpass
+from termcolor import colored
 import tarfile
 
 def printUsage():
@@ -14,7 +15,10 @@ def helpMsg(*args):
     return 'To Do: Print Help message'
 
 def entryToString(entry):
-    return '{id:4}|{name:48}|{filetype:4}|{tags}'.format(**entry)
+    return colored('{:4}'.format(entry['id']), 'red') + '|' + \
+        colored('{:48}'.format(entry['name']), 'white') + '|' + \
+        colored('{:4}'.format(entry['filetype']), 'yellow') + '|' + \
+        colored('{}'.format(entry['tags']), 'blue')
 
 def search(fileEncryptor, metadata, *args):
     if len(args) < 2: return helpMsg()
@@ -32,12 +36,24 @@ def search(fileEncryptor, metadata, *args):
             return []
     elif searchType == 'file':
         subtype = args[1]
-        query = args[2]
         if subtype == 'tag':
+            def incexc(inclusion, exclusion, l):
+                for t in inclusion:
+                    if t not in l: return False
+                for t in exclusion:
+                    if t in l: return False
+                return True
+
+            incl = args[2:]
+            excl = []
+            if 'NOT' in incl:
+                split = incl.index('NOT')
+                incl, excl = incl[:split], incl[split + 1:]
             return reduce(lambda x, y: x + entryToString(y) + '\n',
-                    filter(lambda e: query in e['tags'], metadata),
+                    filter(lambda e: incexc(incl, excl, e['tags']), metadata),
                     '')
         elif subtype == 'name':
+            query = set(args[2])
             names = list(map(lambda entry: entry['name'], metadata))
             try:
                 matches = process.extract(query, names)
