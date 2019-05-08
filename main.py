@@ -55,7 +55,7 @@ def filterFiles(metadata, cmdArgs):
         if cmdArgs.num > 0:
             if cmdArgs.rand:
                 return sample(
-                    [next(filteredEntries) for i in range(cmdArgs.num)],
+                    [e for e in filteredEntries],
                     cmdArgs.num)
             return [next(filteredEntries) for i in range(cmdArgs.num)]
         else: return filteredEntries
