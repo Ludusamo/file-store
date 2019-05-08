@@ -8,6 +8,7 @@ from getpass import getpass
 from termcolor import colored
 import tarfile
 import argparse
+from itertools import islice
 
 def printUsage():
     print('Usage: {} [filestore]', sys.argv[0])
@@ -41,10 +42,13 @@ def filterFiles(metadata, cmdArgs):
                 filter(lambda m: m[1] > 80, matches)) # Take matches >80 percent
 
         # include all of these
-        return filter(lambda f: isSubset(cmdArgs.tags, f['tags']),
-                # Don't include any of these
-                filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
-                    subset))
+        filteredEntries = filter(lambda f: isSubset(cmdArgs.tags, f['tags']),
+                    # Don't include any of these
+                    filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
+                        subset))
+        if cmdArgs.num > 0:
+            return [next(filteredEntries) for i in range(cmdArgs.num)]
+        else: return filteredEntries
     except: return []
 
 def search(fileEncryptor, metadata, cmdArgs, *args):
@@ -232,6 +236,8 @@ if __name__ == "__main__":
         help='name of file')
     parser.add_argument('-ft', '--type',
         help='associated filetype')
+    parser.add_argument('-nu', '--num', type=int, default=-1,
+        help='number of results desired')
     args = parser.parse_args()
     main(args)
 
