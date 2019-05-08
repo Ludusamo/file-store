@@ -131,13 +131,12 @@ def add(fileEncryptor, metadata, cmdArgs, *args):
         entry = addFile('dir.tar.gz', name, filetype, tags)
         os.remove('dir.tar.gz')
         return entryToString(entry)
-    else:
-        return entryToString(addFile(path, name, filetype, tags))
-    return None # Should never occur
+    return entryToString(addFile(path, name, filetype, tags))
 
 def get(fileEncryptor, metadata, cmdArgs, *args):
     dirPath = fileEncryptor.filestore + '/unencrypted'
-    def decryptFile(fileId):
+    def decryptFile(f):
+        fileId = f['id']
         fileData = metadata[fileId]
         if fileData['filetype'] == 'dir':
             folderPath = dirPath + '/' + fileData['name']
@@ -152,11 +151,14 @@ def get(fileEncryptor, metadata, cmdArgs, *args):
         else:
             fileEncryptor.decrypt(fileEncryptor.filestore + '/' + str(fileId), \
                     dirPath + '/' + fileData['name'], fileData['filetype'])
+        print('Decrypted:', colored(f['name'], 'white'))
     if not os.path.exists(dirPath):
         os.makedirs(dirPath)
-    for f in filterFiles(metadata, cmdArgs):
-        decryptFile(f['id'])
-        print('Decrypted:', colored(f['name'], 'white'))
+    pool = ThreadPool(cpu_count())
+    files = filterFiles(metadata, cmdArgs)
+    pool.map(decryptFile, files)
+    pool.close()
+    pool.join()
     return 'Done!'
 
 def remove(fileEncryptor, metadata, cmdArgs, *args):
@@ -193,7 +195,7 @@ def changepass(fileEncryptor, metadata, cmdArgs, *args):
         fileEncryptor.encrypt(path + '.temp', path)
         os.remove(path + '.temp')
     pool = ThreadPool(cpu_count())
-    res = pool.map(rehash, metadata)
+    pool.map(rehash, metadata)
     pool.close()
     pool.join()
     return 'Done!'
