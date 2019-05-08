@@ -10,6 +10,8 @@ import tarfile
 import argparse
 from itertools import islice
 from random import sample
+from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import cpu_count
 
 def printUsage():
     print('Usage: {} [filestore]', sys.argv[0])
@@ -30,7 +32,6 @@ def entryToString(entry):
         colored('{}'.format(longStr(entry['tags'], 52)), 'blue')
 
 def filterFiles(metadata, cmdArgs):
-    print(cmdArgs)
     def isSubset(l1, l2): return all(map(lambda i: i in l2, l1))
     def hasNone(l1, l2): return not any(map(lambda i: i in l2, l1))
     try:
@@ -165,7 +166,6 @@ def remove(fileEncryptor, metadata, cmdArgs, *args):
         return 'id {} does not exist'.format(fileId)
     os.remove(fileEncryptor.filestore + '/' + str(fileId))
     for i in range(fileId + 1, len(metadata)):
-        print(i)
         metadata[i]['id'] = i - 1
         metadata[i - 1] = metadata[i]
         os.rename(fileEncryptor.filestore + '/' + str(i), \
@@ -180,6 +180,24 @@ def filetype(fileEncryptor, metadata, cmdArgs, *args):
     metadata[fileId]['filetype'] = filetype
     return 'successfully set file {} filetype to {}'.format(fileId, filetype)
 
+def changepass(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return 'insufficient arguments: expected new password'
+    oldEncryptor = EncryptedFile.FileEncryptor( \
+            fileEncryptor.password.decode(), \
+            fileEncryptor.filestore)
+    fileEncryptor.password = args[0].encode('utf-8')
+    def rehash(e):
+        print('Rehashing:', colored(e['name'], 'white'))
+        path = fileEncryptor.filestore + '/' + str(e['id'])
+        oldEncryptor.decrypt(path, path, 'temp')
+        fileEncryptor.encrypt(path + '.temp', path)
+        os.remove(path + '.temp')
+    pool = ThreadPool(cpu_count())
+    res = pool.map(rehash, metadata)
+    pool.close()
+    pool.join()
+    return 'Done!'
+
 dispatch = \
     { 'search': search
     , 'tag': tag
@@ -188,6 +206,7 @@ dispatch = \
     , 'get': get
     , 'remove': remove
     , 'filetype': filetype
+    , 'changepass': changepass
     }
 
 def main(args):
