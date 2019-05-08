@@ -7,94 +7,93 @@ from fuzzywuzzy import process
 from getpass import getpass
 from termcolor import colored
 import tarfile
+import argparse
 
 def printUsage():
     print('Usage: {} [filestore]', sys.argv[0])
 
-def helpMsg(*args):
-    return 'To Do: Print Help message'
-
 def entryToString(entry):
-    return colored('{:4}'.format(entry['id']), 'red') + '|' + \
-        colored('{:48}'.format(entry['name']), 'white') + '|' + \
-        colored('{:4}'.format(entry['filetype']), 'yellow') + '|' + \
-        colored('{}'.format(entry['tags']), 'blue')
+    def longStr(item, l):
+        s = str(item)
+        if len(s) > l:
+            if type(item) == list:
+                return s[:l-4] + '...]'
+            else:
+                return s[:l-3] + '...'
+        return s
 
-def search(fileEncryptor, metadata, *args):
-    if len(args) < 2: return helpMsg()
+    return colored('{:4}'.format(entry['id']), 'red') + '|' + \
+        colored('{:40}'.format(longStr(entry['name'], 40)), 'white') + '|' + \
+        colored('{:4}'.format(entry['filetype']), 'yellow') + '|' + \
+        colored('{}'.format(longStr(entry['tags'], 52)), 'blue')
+
+def filterFiles(metadata, cmdArgs):
+    def isSubset(l1, l2): return all(map(lambda i: i in l2, l1))
+    def hasNone(l1, l2): return not any(map(lambda i: i in l2, l1))
+    try:
+        subset = metadata
+        if cmdArgs.name != '':
+            matches = process.extract(cmdArgs.name, \
+                map(lambda f: f['name'], metadata))
+            subset = map(lambda match: \
+                next(e for e in metadata \
+                    if e['name'] == match[0]),
+                filter(lambda m: m[1] > 80, matches)) # Take matches >80 percent
+
+        # include all of these
+        return filter(lambda f: isSubset(cmdArgs.tags, f['tags']),
+                # Don't include any of these
+                filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
+                    subset))
+    except: return []
+
+def search(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return helpMsg()
     searchType = args[0]
 
     if searchType == 'tag':
-        query = args[1]
-        tags = list(
-                reduce(lambda t1, t2: t1 + t2,
+        tags = reduce(lambda t1, t2: t1 + t2,
                 map(lambda entry: entry['tags'],
-                    metadata)))
+                    metadata))
+        if len(args) < 2: return colored(', '.join(set(tags)), 'blue')
+        query = args[1]
         try:
-            return process.extract(query, tags)
+            return colored(', '.join(map(lambda t: t[0] ,
+                filter(lambda t: t[1] > 80,
+                    process.extract(query, set(tags))))), 'blue')
         except:
             return []
     elif searchType == 'file':
-        subtype = args[1]
-        if subtype == 'tag':
-            def incexc(inclusion, exclusion, l):
-                for t in inclusion:
-                    if t not in l: return False
-                for t in exclusion:
-                    if t in l: return False
-                return True
-
-            incl = args[2:]
-            excl = []
-            if 'NOT' in incl:
-                split = incl.index('NOT')
-                incl, excl = incl[:split], incl[split + 1:]
-            return reduce(lambda x, y: x + entryToString(y) + '\n',
-                    filter(lambda e: incexc(incl, excl, e['tags']), metadata),
-                    '')
-        elif subtype == 'name':
-            query = set(args[2])
-            names = list(map(lambda entry: entry['name'], metadata))
-            try:
-                matches = process.extract(query, names)
-                return reduce(lambda x, y: x + entryToString(y) + '\n',
-                        map(lambda match: \
-                                next(e for e in metadata \
-                                    if e['name'] == match[0]),
-                            matches),
-                        '')
-            except:
-                return []
+        return '\n'.join(map(lambda f: entryToString(f), \
+                filterFiles(metadata, cmdArgs)))
     else:
         return '{} is not a valid search type'.format(searchType)
 
-def tag(fileEncryptor, metadata, *args):
-    if len(args) < 2: return helpMsg()
+def tag(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return 'insufficient arguments: expected file id'
     entry = int(args[0])
-    tag = args[1]
-    if tag not in metadata[entry]['tags']:
-        metadata[entry]['tags'].append(tag)
-        return 'successfully tagged {} with tag {}'.format(entry, tag)
-    else:
-        return 'entry {} already has tag {}'.format(entry, tag)
+    msgs = []
+    for tag in cmdArgs.tags:
+        if tag not in metadata[entry]['tags']:
+            metadata[entry]['tags'].append(tag)
+            msgs.append('successfully tagged {} with tag {}'.format(entry, tag))
+        else:
+            msgs.append('entry {} already has tag {}'.format(entry, tag))
+    return '\n'.join(msgs)
 
-def untag(fileEncryptor, metadata, *args):
-    if len(args) < 2: return helpMsg()
+def untag(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return 'insufficient arguments: expected file id'
     entry = int(args[0])
-    tag = args[1]
-    if tag not in metadata[entry]['tags']:
-        return 'entry {} does not have tag {}'.format(entry, tag)
-    else:
-        metadata[entry]['tags'].remove(tag)
-        return 'successfully removed {} tag from {}'.format(tag, entry)
+    msgs = []
+    for tag in cmdArgs.tags:
+        if tag not in metadata[entry]['tags']:
+            msgs.append('entry {} does not have tag {}'.format(entry, tag))
+        else:
+            metadata[entry]['tags'].remove(tag)
+            msgs.append('successfully removed {} tag from {}'.format(tag, entry))
+    return '\n'.join(msgs)
 
-def ls(fileEncryptor, metadata, *args):
-    return reduce(lambda x, y: x + entryToString(y) + '\n', metadata, '')
-
-def quit(password, metadata, *args):
-    return None
-
-def add(fileEncryptor, metadata, *args):
+def add(fileEncryptor, metadata, cmdArgs, *args):
     def addFile(path, name, filetype, tags):
         nextId = metadata[-1]['id'] + 1 if len(metadata) > 0 else 0
         newEntry = \
@@ -107,12 +106,11 @@ def add(fileEncryptor, metadata, *args):
         fileEncryptor.encrypt(path, fileEncryptor.filestore + '/' + str(nextId))
         return newEntry
 
-    if len(args) < 3: return helpMsg()
+    if len(args) < 1: return helpMsg()
     path = args[0]
-    name = args[1]
-    filetype = args[2]
-    tags = args[3:]
-    print(path)
+    name = cmdArgs.name
+    filetype = cmdArgs.type
+    tags = cmdArgs.tags
     if filetype == 'dir':
         with tarfile.open('dir.tar.gz', 'w:gz') as dirEntry:
             dirEntry.add(path, arcname=os.path.basename(path))
@@ -123,8 +121,7 @@ def add(fileEncryptor, metadata, *args):
         return entryToString(addFile(path, name, filetype, tags))
     return None # Should never occur
 
-def get(fileEncryptor, metadata, *args):
-    if len(args) < 2: return helpMsg()
+def get(fileEncryptor, metadata, cmdArgs, *args):
     dirPath = fileEncryptor.filestore + '/unencrypted'
     def decryptFile(fileId):
         fileData = metadata[fileId]
@@ -143,18 +140,13 @@ def get(fileEncryptor, metadata, *args):
                     dirPath + '/' + fileData['name'], fileData['filetype'])
     if not os.path.exists(dirPath):
         os.makedirs(dirPath)
-    reqType = args[0]
-    if reqType == 'file':
-        fileId = int(args[1])
-        decryptFile(fileId)
-    elif reqType == 'tag':
-        tag = args[1]
-        for f in filter(lambda f: tag in f['tags'], metadata):
-            decryptFile(f['id'])
-    return 'success'
+    for f in filterFiles(metadata, cmdArgs):
+        decryptFile(f['id'])
+        print('Decrypted:', colored(f['name'], 'white'))
+    return 'Done!'
 
-def remove(fileEncryptor, metadata, *args):
-    if len(args) < 1: return helpMsg()
+def remove(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return 'insufficient arguments: expected file id'
     fileId = int(args[0])
     if fileId >= len(metadata) or fileId < 0:
         return 'id {} does not exist'.format(fileId)
@@ -168,35 +160,29 @@ def remove(fileEncryptor, metadata, *args):
     metadata.pop()
     return 'successfully removed {}'.format(fileId)
 
-def filetype(fileEncryptor, metadata, *args):
-    if len(args) < 2: return helpMsg()
+def filetype(fileEncryptor, metadata, cmdArgs, *args):
+    if len(args) < 1: return 'insufficient arguments: expected file id'
     fileId = int(args[0])
-    filetype = args[1]
+    filetype = cmdArgs.type
     metadata[fileId]['filetype'] = filetype
     return 'successfully set file {} filetype to {}'.format(fileId, filetype)
 
 dispatch = \
-    { 'quit': quit
-    , 'search': search
-    , 'help': helpMsg
+    { 'search': search
     , 'tag': tag
     , 'untag': untag
     , 'add': add
-    , 'ls': ls
     , 'get': get
     , 'remove': remove
     , 'filetype': filetype
     }
 
-def main():
-    filestore = 'files'
-    if len(sys.argv) >= 2:
-        filestore = sys.argv[1]
+def main(args):
+    filestore = args.source
 
     password = getpass('Please enter password: ')
     fileEncryptor = EncryptedFile.FileEncryptor(password, filestore)
     #EncryptedFile.FileEncryptor('test', filestore).encrypt('files/ex.json', 'files/metadata')
-    print(fileEncryptor)
 
     # Read in metadata
     metadata = None
@@ -215,18 +201,7 @@ def main():
         metadata = []
         print('repository initialized')
 
-    if len(sys.argv) > 2:
-        print(dispatch[sys.argv[2]](fileEncryptor, metadata, *sys.argv[3:]))
-    else:
-        while True:
-            cmd = input('>> ').split(' ')
-            if cmd[0] not in dispatch:
-                print(helpMsg())
-                continue
-            # Send the rest as arguments
-            res = dispatch[cmd[0]](fileEncryptor, metadata, *cmd[1:])
-            if not res: break
-            print(res)
+    print(dispatch[args.cmd](fileEncryptor, metadata, args, *args.args))
 
     with open(filestore + '/metadata.json', 'w') as f:
         try:
@@ -238,4 +213,26 @@ def main():
     os.remove(filestore + '/metadata.json')
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    def validCmd(cmd):
+        if cmd not in dispatch:
+            msg = '%s is not a valid command' % cmd
+        return cmd
+    parser.add_argument('cmd', type=validCmd,
+        help='command to be dispatched')
+    parser.add_argument('args', nargs='*',
+        help='arguments to specific commands')
+    parser.add_argument('-s', '--source', required=True,
+        help='path to source folder')
+    parser.add_argument('-t', '--tags', nargs='+', default=[],
+        help='associated tags with request')
+    parser.add_argument('-nt', '--nottags', nargs='+', default=[],
+        help='exclusion list for tags')
+    parser.add_argument('-n', '--name', default='',
+        help='name of file')
+    parser.add_argument('-ft', '--type',
+        help='associated filetype')
+    args = parser.parse_args()
+    main(args)
+
+
