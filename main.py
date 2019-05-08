@@ -9,6 +9,7 @@ from termcolor import colored
 import tarfile
 import argparse
 from itertools import islice
+from random import sample
 
 def printUsage():
     print('Usage: {} [filestore]', sys.argv[0])
@@ -47,6 +48,10 @@ def filterFiles(metadata, cmdArgs):
                     filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
                         subset))
         if cmdArgs.num > 0:
+            if cmdArgs.rand:
+                return sample(
+                    [next(filteredEntries) for i in range(cmdArgs.num)],
+                    cmdArgs.num)
             return [next(filteredEntries) for i in range(cmdArgs.num)]
         else: return filteredEntries
     except: return []
@@ -238,7 +243,7 @@ if __name__ == "__main__":
         help='associated filetype')
     parser.add_argument('-nu', '--num', type=int, default=-1,
         help='number of results desired')
+    parser.add_argument('-r', '--rand', action='store_true',
+        help='enable randomization of output')
     args = parser.parse_args()
     main(args)
-
-
