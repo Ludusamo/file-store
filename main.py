@@ -30,6 +30,7 @@ def entryToString(entry):
         colored('{}'.format(longStr(entry['tags'], 52)), 'blue')
 
 def filterFiles(metadata, cmdArgs):
+    print(cmdArgs)
     def isSubset(l1, l2): return all(map(lambda i: i in l2, l1))
     def hasNone(l1, l2): return not any(map(lambda i: i in l2, l1))
     try:
@@ -42,11 +43,14 @@ def filterFiles(metadata, cmdArgs):
                     if e['name'] == match[0]),
                 filter(lambda m: m[1] > 80, matches)) # Take matches >80 percent
 
-        # include all of these
-        filteredEntries = filter(lambda f: isSubset(cmdArgs.tags, f['tags']),
-                    # Don't include any of these
-                    filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
-                        subset))
+        # remove if not in id list if id list is not empty
+        filteredEntries = \
+            filter(lambda f: not cmdArgs.id or f['id'] in cmdArgs.id,
+                # include all of these
+                filter(lambda f: isSubset(cmdArgs.tags, f['tags']),
+                # Don't include any of these
+                filter(lambda f: hasNone(cmdArgs.nottags, f['tags']),
+                    subset)))
         if cmdArgs.num > 0:
             if cmdArgs.rand:
                 return sample(
@@ -233,6 +237,8 @@ if __name__ == "__main__":
         help='arguments to specific commands')
     parser.add_argument('-s', '--source', required=True,
         help='path to source folder')
+    parser.add_argument('-i', '--id', type=int, nargs='+', default=[],
+        help='ids of desired elements')
     parser.add_argument('-t', '--tags', nargs='+', default=[],
         help='associated tags with request')
     parser.add_argument('-nt', '--nottags', nargs='+', default=[],
