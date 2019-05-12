@@ -90,9 +90,11 @@ def tag(fileEncryptor, metadata, cmdArgs, *args):
     for tag in cmdArgs.tags:
         if tag not in metadata[entry]['tags']:
             metadata[entry]['tags'].append(tag)
-            msgs.append('successfully tagged {} with tag {}'.format(entry, tag))
+            msgs.append('successfully tagged {} with tag {}'
+                .format(colored(entry, 'red'), colored(tag, 'blue')))
         else:
-            msgs.append('entry {} already has tag {}'.format(entry, tag))
+            msgs.append('entry {} already has tag {}'
+                .format(colored(entry, 'red'), colored(tag, 'blue')))
     return '\n'.join(msgs)
 
 def untag(fileEncryptor, metadata, cmdArgs, *args):
@@ -101,10 +103,12 @@ def untag(fileEncryptor, metadata, cmdArgs, *args):
     msgs = []
     for tag in cmdArgs.tags:
         if tag not in metadata[entry]['tags']:
-            msgs.append('entry {} does not have tag {}'.format(entry, tag))
+            msgs.append('entry {} does not have tag {}'
+                .format(colored(entry, 'red'), colored(tag, 'blue')))
         else:
             metadata[entry]['tags'].remove(tag)
-            msgs.append('successfully removed {} tag from {}'.format(tag, entry))
+            msgs.append('successfully removed {} tag from {}'
+                .format(colored(tag, 'blue'), colored(entry, 'red')))
     return '\n'.join(msgs)
 
 def add(fileEncryptor, metadata, cmdArgs, *args):
@@ -122,9 +126,10 @@ def add(fileEncryptor, metadata, cmdArgs, *args):
 
     if len(args) < 1: return helpMsg()
     path = args[0]
-    name = cmdArgs.name
-    filetype = cmdArgs.type
-    tags = cmdArgs.tags
+    filename = path.split('/')[-1]
+    name = cmdArgs.name if cmdArgs.name else filename.split('.')[0]
+    filetype = cmdArgs.type if cmdArgs.type else filename.split('.')[1]
+    tags = list(set(cmdArgs.tags))
     if filetype == 'dir':
         with tarfile.open('dir.tar.gz', 'w:gz') as dirEntry:
             dirEntry.add(path, arcname=os.path.basename(path))
@@ -135,6 +140,7 @@ def add(fileEncryptor, metadata, cmdArgs, *args):
 
 def get(fileEncryptor, metadata, cmdArgs, *args):
     dirPath = fileEncryptor.filestore + '/unencrypted'
+    if cmdArgs.dest: dirPath = cmdArgs.dest
     def decryptFile(f):
         fileId = f['id']
         fileData = metadata[fileId]
@@ -251,6 +257,7 @@ if __name__ == "__main__":
     def validCmd(cmd):
         if cmd not in dispatch:
             msg = '%s is not a valid command' % cmd
+            raise argparse.ArgumentTypeError(msg)
         return cmd
     parser.add_argument('cmd', type=validCmd,
         help='command to be dispatched')
@@ -258,6 +265,8 @@ if __name__ == "__main__":
         help='arguments to specific commands')
     parser.add_argument('-s', '--source', required=True,
         help='path to source folder')
+    parser.add_argument('-d', '--dest',
+        help='path to destination folder of unencrypted files')
     parser.add_argument('-i', '--id', type=int, nargs='+', default=[],
         help='ids of desired elements')
     parser.add_argument('-t', '--tags', nargs='+', default=[],
