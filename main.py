@@ -24,12 +24,19 @@ def entryToString(entry):
                 return s[:l-4] + '...]'
             else:
                 return s[:l-3] + '...'
-        return s
+        return s.ljust(l)
 
+    _, columns = os.popen('stty size', 'r').read().split()
+    print(columns)
+    nameWidth = (int(columns) - 8) // 8 * 3
+    print(nameWidth)
+    tagWidth = int(columns) - 8 - nameWidth - 3
+    print(tagWidth)
     return colored('{:4}'.format(entry['id']), 'red') + '|' + \
-        colored('{:40}'.format(longStr(entry['name'], 40)), 'white') + '|' + \
+        colored('{}'
+            .format(longStr(entry['name'], nameWidth)), 'white') + '|' + \
         colored('{:4}'.format(entry['filetype']), 'yellow') + '|' + \
-        colored('{}'.format(longStr(entry['tags'], 52)), 'blue')
+        colored('{}'.format(longStr(entry['tags'], tagWidth)), 'blue')
 
 def filterFiles(metadata, cmdArgs):
     def isSubset(l1, l2): return all(map(lambda i: i in l2, l1))
